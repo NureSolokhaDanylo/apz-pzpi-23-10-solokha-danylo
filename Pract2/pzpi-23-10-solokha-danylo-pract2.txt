@@ -1,0 +1,335 @@
+МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ
+УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+Кафедра «Програмної інженерії»
+
+
+ЗВІТ
+
+З практичної роботи №2
+з дисципліни «Архітектура програмного забезпечення»
+на тему «Архітектура відомих програмних систем»
+
+
+
+
+
+
+
+
+
+Виконав:
+ст. гр. ПЗПІ-23-10
+Солоха Данило
+Перевірив:
+ст. викладач катедри ПІ
+Сокорчук Ігор Петрович
+
+
+
+
+
+
+Харків 2026
+
+1 ІСТОРІЯ ЗМІН
+
+№
+Дата
+Версія звіту
+Опис змін та виправлень
+1
+15.04.2026
+0.1
+Додав основні розділи
+2
+18.04.2026
+0.1
+Додав слайди презентації
+3
+19.04.2026
+0.1
+Додав посилання на відео та хронологічний опис.
+2 ЗАВДАННЯ
+
+Метою роботи є дослідження архітектури складної програмної системи та аналіз застосованих архітектурних підходів.
+У межах роботи необхідно:
+* виконати аналіз архітектури програмної системи;
+* визначити архітектурний стиль;
+* описати основні компоненти;
+* проаналізувати взаємодію підсистем;
+* оцінити масштабованість та переваги архітектурних рішень;
+* підготувати презентацію та відеодоповідь;
+* оформити звіт відповідно до ДСТУ 3008:2015.
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+
+3.1 Загальні відомості про систему
+Назва системи: Notion
+
+Розробник: Notion Labs Inc.
+
+Призначення системи: (область застосування, користувачі, основні функції)
+
+3.2 Архітектурний стиль системи
+      Notion використовує гібридну архітектуру, яка поєднує кілька стилів:
+* Клієнт-серверна модель: Товстий клієнт (веб, десктоп, мобільні додатки) взаємодіє з потужною серверною частиною через API.
+* Шарова архітектура (Layered): Чіткий поділ на рівень представлення, бізнес-логіки та зберігання даних.
+* Мікросервісна архітектура: Використання окремих сервісів для специфічних завдань (пошук, аналітика, MessageStore).
+* Подієво-орієнтований підхід: Синхронізація змін через WebSocket та обробка черг транзакцій.
+      Обґрунтування вибору архітектури: Така комбінація дозволяє забезпечити «відчуття миттєвості» (через оптимістичні оновлення на клієнті) та водночас масштабувати сховище даних на мільйони робочих просторів за допомогою складного шардингу PostgreSQL.
+
+3.3 Основні компоненти системи
+      Опис підсистем:
+* Інтерфейс користувача: Реалізований як реактивний застосунок із використанням локального кешу (SQLite або IndexedDB). Підтримує миттєве відображення змін без очікування відповіді сервера.
+* Серверна частина: Виконує роль API-шлюзу (API Gateway), відповідає за автентифікацію, маршрутизацію запитів та валідацію транзакцій.
+* Рівень бізнес-логіки: Обробляє блокову модель даних, перевіряє складні ієрархічні права доступу через механізм upward pointers та координує спільну роботу.
+* Рівень зберігання даних: Шардована база даних PostgreSQL (розподілена за Workspace ID), кеш-системи Redis для швидкого доступу до метаданих.
+* Допоміжні сервіси: MessageStore (WebSocket-сервер для real-time оновлень), Data Lake (Kafka, S3, Spark для аналітики та ШІ), пошуковий рушій (Elasticsearch).
+
+3.4 Взаємодія компонентів
+      Опис потоків даних, протоколів взаємодії, механізмів синхронізації:
+      Взаємодія базується на протоколі HTTPS (REST API) для основних запитів та WebSocket для передачі сигналів синхронізації. Механізм синхронізації: клієнт вносить зміни локально (Optimistic Update), операція потрапляє в TransactionQueue, сервер фіксує зміну в БД та надсилає сигнал через MessageStore, інші клієнти отримують сигнал та оновлюють дані через API.
+
+
+Рисунок 1 – Діаграма потоків даних (Optimistic Updates)
+Відображає шлях від дії користувача через локальний кеш до серверної БД.
+
+
+Рисунок 2 – Діаграма протоколів взаємодії (Real-time Sync)
+Демонструє роль WebSocket та MessageStore у розсилці оновлень.
+
+
+Рисунок 3 – Діаграма ієрархії прав (Permission Hierarchy)
+Показує механізм upward pointers для перевірки доступу.
+
+3.5 Масштабованість та надійність
+* Механізми балансування навантаження: Використання PgBouncer для управління тисячами з'єднань до PostgreSQL та балансувальники трафіку на рівні API.
+* Відмовостійкість: Ізоляція транзакційного та аналітичного контурів (Data Lake), що гарантує роботу редактора навіть при збоях у сервісах ШІ чи аналітики.
+* Кешування: Багаторівневе кешування — від локального SQLite на пристрої користувача до Redis на сервері.
+* Реплікація та Шардинг: Дані розділені на 480 логічних шардів між 96 фізичними вузлах PostgreSQL, що дозволяє горизонтально масштабувати сховище.
+* Контейнеризація або хмарна інфраструктура: Notion повністю базується на хмарній інфраструктурі, використовуючи контейнери для швидкого розгортання мікросервісів та обробки даних у Spark.
+
+3.6 Приклади програмної реалізації
+      У процесі підготовки доповіді на тему «Архітектура програмної системи Notion» було використано інструмент штучного інтелекту Gemini 3.1. Штучний інтелект використовувався для збору, узагальнення та структурування інформації про архітектуру Notion, а також для формування прикладів програмного коду. Автор самостійно перевірив отриману інформацію, уточнив термінологію, адаптував приклади під тему навчальної роботи. 
+   
+3.7 Організація матеріалів у GitHub
+Структура директорії:
+
+Pract2/
+ ??? pzpi-23-10-solokha-danylo-pract2/
+ ?    ??? code-examples.cs
+ ??? pzpi-23-10-solokha-danylo-pract2.txt
+
+3.8 Підготовка презентації та відеозапису
+Слайди та відеодоповідь створені відповідно до встановлених вимог дисципліни.
+
+4 ВИСНОВКИ
+
+У результаті виконання практичного заняття:
+* досліджено архітектуру програмної системи Notion;
+* визначено її архітектурний стиль;
+* проаналізовано взаємодію компонентів;
+* оцінено переваги та обмеження архітектурних рішень;
+* сформовано практичні навички архітектурного аналізу ПЗ.
+ВИКОРИСТАНІ ДЖЕРЕЛА
+1. The data model behind Notion's flexibility [Електронний ресурс] / Notion Engineering. - Режим доступу: https://www.notion.com/blog/data-model-behind-notion (дата звернення: 15.04.2026).
+2. Herding elephants: Lessons learned from sharding Postgres at Notion [Електронний ресурс] / Notion Engineering. - Режим доступу: https://www.notion.com/blog/sharding-postgres-at-notion (дата звернення: 15.04.2026).
+3. The Great Re-shard [Електронний ресурс] / Notion Engineering. - Режим доступу: https://www.notion.com/blog/the-great-re-shard (дата звернення: 15.04.2026).
+4. Building and scaling Notion's data lake [Електронний ресурс] / Notion Engineering. - Режим доступу: https://www.notion.com/blog/building-and-scaling-notions-data-lake (дата звернення: 15.04.2026).
+5. Block object [Електронний ресурс] / Notion API Documentation. - Режим доступу: https://developers.notion.com/reference/block (дата звернення: 15.04.2026).
+6. Page object [Електронний ресурс] / Notion API Documentation. - Режим доступу: https://developers.notion.com/reference/page (дата звернення: 15.04.2026).
+7. Database object [Електронний ресурс] / Notion API Documentation. - Режим доступу: https://developers.notion.com/reference/database (дата звернення: 15.04.2026).
+
+ДОДАТОК А
+Відеозапис
+Відеозапис доповіді на YouTube: https://youtu.be/Fq8Q_q-ZuTA
+
+Хронологічний опис відеозапису
+00:00 – Вступ
+00:19 - Блокова модель та історія створення
+01:10 - Гібридна архітектура
+02:06 - Швидкість та оптимістичні оновлення
+03:01 - Синхронізація в реальному часі
+03:56 - Бізнес-логіка та права доступу
+04:49 - Масштабування БД: Шардінг
+05:57 - Аналітичний контур та Data Lake
+07:00 - Надійність та сценарії взаємодії
+08:03 - Висновки та виклики
+08:51 - Джерела
+
+ДОДАТОК Б
+Слайди презентації
+
+
+Рисунок Б.1 — Титульний слайд.
+
+
+Рисунок Б.2 — Блокова модель та історія створення.
+
+
+
+Рисунок Б.3 — Гібридна архітектура.
+
+
+Рисунок Б.4 —Швидкість та оптимістичні оновлення.
+
+
+
+Рисунок Б.5 — Синхронізація в реальному часі.
+
+
+Рисунок Б.6 —Бізнес-логіка та права доступу.
+
+
+
+Рисунок Б.7 — Масштабування БД: Шардінг.
+
+
+Рисунок Б.8 — Аналітичний контур та Data Lake.
+
+
+
+Рисунок Б.9 — Надійність та сценарії взаємодії.
+
+
+Рисунок Б.10 — Висновки та виклики.
+
+
+Рисунок Б.11 — Список використаних джерел.
+
+
+ДОДАТОК В
+Зпит до ШІ
+
+Напиши складну систему синхронізації даних на C#, що імітує архітектуру Notion. 
+Система повинна включати: 
+1. Модель 'Block' (ID, Content, Version).
+2. 'ClientStore' для збереження локального стану та 'ServerStore' (імітація БД).
+3. Менеджер транзакцій, який реалізує 'Optimistic Updates': при зміні блок оновлюється 
+   локально миттєво, а операція додається в чергу 'TransactionQueue'.
+4. Фоновий процес синхронізації, який відправляє транзакції на сервер, обробляє 
+   підтвердження версій та імітує затримку мережі.
+5. Логіку обробки конфліктів: якщо версія на сервері новіша, клієнт повинен 
+   відкотити або оновити локальний стан. 
+Використовуй сучасний C# (Async/Await, ConcurrentQueue, Generics).
+
+Приклад прогрманого коду
+1. using System;
+2. using System.Collections.Concurrent;
+3. using System.Collections.Generic;
+4. using System.Linq;
+5. using System.Threading;
+6. using System.Threading.Tasks;
+7. 
+8. namespace NotionArchitecture.ComplexExample
+9. {
+10.     public class Block
+11.     {
+12.         public Guid Id { get; set; }
+13.         public string Content { get; set; }
+14.         public int Version { get; set; }
+15. 
+16.         public Block Clone() => new Block { Id = Id, Content = Content, Version = Version };
+17.     }
+18. 
+19.     public record Operation(Guid BlockId, string NewContent, int BaseVersion);
+20. 
+21.     public class NotionSyncEngine
+22.     {
+23.         private readonly ConcurrentDictionary<Guid, Block> _clientCache = new();
+24.         private readonly ConcurrentQueue<Operation> _transactionQueue = new();
+25.         private readonly Dictionary<Guid, Block> _serverDb = new(); 
+26.         
+27.         public NotionSyncEngine()
+28.         {
+29.             var rootId = Guid.NewGuid();
+30.             _serverDb[rootId] = new Block { Id = rootId, Content = "Initial Content", Version = 1 };
+31.             _clientCache[rootId] = _serverDb[rootId].Clone();
+32.         }
+33. 
+34.         public void EditBlock(Guid id, string newContent)
+35.         {
+36.             if (!_clientCache.TryGetValue(id, out var block)) return;
+37. 
+38.             var baseVersion = block.Version;
+39.             block.Content = newContent; 
+40.             
+41.             _transactionQueue.Enqueue(new Operation(id, newContent, baseVersion));
+42.             
+43.             Console.WriteLine($"[UI] Block {id} updated optimistically: '{newContent}' (v{baseVersion})");
+44.         }
+45. 
+46.         public async Task StartSyncLoop(CancellationToken ct)
+47.         {
+48.             Console.WriteLine("[System] Background sync started...");
+49. 
+50.             while (!ct.IsCancellationRequested)
+51.             {
+52.                 if (_transactionQueue.TryDequeue(out var op))
+53.                 {
+54.                     await ProcessOperation(op);
+55.                 }
+56.                 await Task.Delay(500); 
+57.             }
+58.         }
+59. 
+60.         private async Task ProcessOperation(Operation op)
+61.         {
+62.             Console.WriteLine($"[Network] Sending transaction to server for block {op.BlockId}...");
+63.             await Task.Delay(1000); 
+64. 
+65.             lock (_serverDb)
+66.             {
+67.                 var serverBlock = _serverDb[op.BlockId];
+68. 
+69.                 if (serverBlock.Version == op.BaseVersion)
+70.                 {
+71.                     serverBlock.Content = op.NewContent;
+72.                     serverBlock.Version++;
+73.                     
+74.                     _clientCache[op.BlockId].Version = serverBlock.Version;
+75.                     Console.WriteLine($"[Server] TRANSACTION COMMITTED. New version: v{serverBlock.Version}");
+76.                 }
+77.                 else
+78.                 {
+79.                     Console.WriteLine($"[Conflict] Sync Error! Server has v{serverBlock.Version}, client sent v{op.BaseVersion}");
+80.                     
+81.                     _clientCache[op.BlockId] = serverBlock.Clone();
+82.                     Console.WriteLine($"[Client] Block {op.BlockId} state synchronized with server (ROLLBACK/UPDATE)");
+83.                 }
+84.             }
+85.         }
+86. 
+87.         public void DisplayState()
+88.         {
+89.             Console.WriteLine("\n--- CURRENT STATE ---");
+90.             foreach (var b in _clientCache.Values)
+91.                 Console.WriteLine($"Block: {b.Id} | Content: {b.Content} | Version: v{b.Version}");
+92.             Console.WriteLine("----------------------\n");
+93.         }
+94.     }
+95. 
+96.     public class Program
+97.     {
+98.         public static async Task Main()
+99.         {
+100.             var engine = new NotionSyncEngine();
+101.             var cts = new CancellationTokenSource();
+102. 
+103.             var syncTask = engine.StartSyncLoop(cts.Token);
+104. 
+105.             // Simulation logic
+106.             // In a real scenario, you would obtain a valid ID from the engine
+107.             // Guid targetId = ...;
+108.             
+109.             await Task.Delay(3000);
+110.             engine.DisplayState();
+111. 
+112.             cts.Cancel();
+113.             try { await syncTask; } catch (OperationCanceledException) {}
+114.         }
+115.     }
+116. }
