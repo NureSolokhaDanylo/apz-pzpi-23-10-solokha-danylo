@@ -1,22 +1,3 @@
-// ==================================================================================
-// COMPLEX EXAMPLE: OPTIMISTIC TRANSACTION SYNCHRONIZATION SYSTEM (C#)
-// ==================================================================================
-
-/*
-PROMPT:
-"Write a complex data synchronization system in C# that mimics Notion's architecture. 
-The system should include: 
-1. A 'Block' model (ID, Content, Version).
-2. A 'ClientStore' for local state and a 'ServerStore' (database simulation).
-3. A transaction manager implementing 'Optimistic Updates': when a change occurs, 
-   the block is updated locally instantly, and the operation is added to a 'TransactionQueue'.
-4. A background synchronization process that sends transactions to the server, 
-   handles version acknowledgments, and simulates network latency.
-5. Conflict resolution logic: if the server version is newer, the client must 
-   rollback or update the local state. 
-Use modern C# (Async/Await, ConcurrentQueue, Generics)."
-*/
-
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
